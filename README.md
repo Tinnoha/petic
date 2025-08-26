@@ -10,7 +10,7 @@
 ---main.go
 ---Dockerfile
 
---postgres
+--databases
 ---go.mod
 ---go.sum
 ---dbLogic.go
