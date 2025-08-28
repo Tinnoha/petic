@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -18,6 +19,8 @@ type user struct {
 	Age      int
 
 	Balance int
+
+	mtx sync.Mutex
 }
 
 func NewUser(fio string, username string, email string, age int) user {
@@ -30,7 +33,7 @@ func NewUser(fio string, username string, email string, age int) user {
 	}
 }
 
-func (u *user) AddBalanceCash(count int) {
+func (u *user) AddBalanceCash(count int) ([]byte, error) {
 	ctx, ctxcancel := context.WithCancel(context.Background())
 
 	fmt.Printf("Пользователь %s пытается положить на счет %d денег!\n", u.Username, count)
@@ -50,17 +53,37 @@ func (u *user) AddBalanceCash(count int) {
 		Value: []byte(string(count)),
 	})
 
+	u.mtx.Lock()
+	u.Balance += count
+	u.mtx.Unlock()
+
 	if err != nil {
 		log.Fatal("Error to write Kafka message: ", err)
-		return
+		return nil, err
+	}
+
+	fmt.Printf("Пользователь %s удачно положил деньги", u.Username)
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "AddBalanceAnswer",
+	})
+
+	defer reader.Close()
+
+	msg, err := reader.ReadMessage(ctx)
+
+	if err != nil {
+		log.Fatal("Error to write Kafka message: ", err)
+		return nil, err
 	}
 
 	ctxcancel()
 
-	fmt.Printf("Пользователь %s удачно положил деньги", u.Username)
+	return msg.Value, nil
 }
 
-func (u *user) DelBalance(count int, ForWhat string) {
+func (u *user) DelBalance(count int, ForWhat string) ([]byte, error) {
 	ctx, ctxcancel := context.WithCancel(context.Background())
 
 	fmt.Printf("Пользователь %s пытается купить %s за %d денег!\n", u.Username, ForWhat, count)
@@ -82,15 +105,31 @@ func (u *user) DelBalance(count int, ForWhat string) {
 
 	if err != nil {
 		log.Fatal("Error to write Kafka message: ", err)
-		return
+		return nil, err
+	}
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "DelBalanceAnswer",
+	})
+
+	defer reader.Close()
+
+	msg, err := reader.ReadMessage(ctx)
+
+	if err != nil {
+		log.Fatal("Error to write Kafka message: ", err)
+		return nil, err
 	}
 
 	ctxcancel()
 
 	fmt.Printf("Пользователь %s удачно купил %s деньги", u.Username, ForWhat)
+
+	return msg.Value, nil
 }
 
-func (u *user) PerevodBalance(count int, usernameTo string) {
+func (u *user) PerevodBalance(count int, usernameTo string) ([]byte, error) {
 	ctx, ctxcancel := context.WithCancel(context.Background())
 
 	fmt.Printf("Пользователь %s пытается перевести пользователю %s %d денег!\n", u.Username, usernameTo, count)
@@ -124,10 +163,26 @@ func (u *user) PerevodBalance(count int, usernameTo string) {
 
 	if err != nil {
 		log.Fatal("Error to write Kafka message: ", err)
-		return
+		return nil, err
+	}
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "PerevodBalanceAnswer",
+	})
+
+	defer reader.Close()
+
+	msg, err := reader.ReadMessage(ctx)
+
+	if err != nil {
+		log.Fatal("Error to write Kafka message: ", err)
+		return nil, err
 	}
 
 	ctxcancel()
 
 	fmt.Printf("Пользователь %s удачно перевел пользователю %s %d деньги", u.Username, usernameTo, count)
+
+	return msg.Value, nil
 }

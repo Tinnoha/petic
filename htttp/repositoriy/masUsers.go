@@ -9,19 +9,19 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type polzovately struct {
+type Polzovately struct {
 	users map[string]user
 }
 
-func NewPolzovately() polzovately {
-	return polzovately{
+func NewPolzovately() Polzovately {
+	return Polzovately{
 		users: make(map[string]user),
 	}
 }
 
-func (p *polzovately) NewUser(vasya user) error {
+func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 	if _, ok := p.users[vasya.Username]; ok {
-		return ThisNameIsExist
+		return nil, ThisNameIsExist
 	}
 
 	ctx, ctxcancel := context.WithCancel(context.Background())
@@ -51,14 +51,23 @@ func (p *polzovately) NewUser(vasya user) error {
 		log.Fatal(err)
 	}
 
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+	})
+
+	msg1, err := reader.ReadMessage(ctx)
+
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+
 	ctxcancel()
 
-	p.users[vasya.Username] = vasya
-
-	return nil
+	return msg1.Value, nil
 }
 
-func (p *polzovately) GetUsers() (map[string]user, []byte) {
+func (p *Polzovately) GetUsers() (map[string]user, []byte) {
 	useri := make(map[string]user)
 
 	ctx, ctxcancel := context.WithCancel(context.Background())
@@ -85,29 +94,53 @@ func (p *polzovately) GetUsers() (map[string]user, []byte) {
 	return useri, msg.Value
 }
 
-func (p *polzovately) EditBalance(count int, username string, typeOfOperation string, DopInformation string) (user, error) {
+func (p *Polzovately) EditBalance(count int, username string, typeOfOperation string, DopInformation string) ([]byte, error) {
 	if _, ok := p.users[username]; !ok {
-		return user{}, errors.New((ThisNameIsNotExist).Error() + username)
+		return nil, errors.New((ThisNameIsNotExist).Error() + username)
 	}
 
 	petya := p.users[username]
 
 	switch typeOfOperation {
 	case "Cash":
-		petya.AddBalanceCash(count)
-	case "Buy":
-		petya.DelBalance(count, DopInformation)
-	case "Transfer":
-		if _, ok := p.users[DopInformation]; !ok {
-			return user{}, errors.New((ThisNameIsNotExist).Error() + DopInformation)
+		bUser, err := petya.AddBalanceCash(count)
+
+		if err != nil {
+			return bUser, err
 		}
-		petya.PerevodBalance(count, DopInformation)
+	case "Buy":
+		if petya.Balance < count {
+			return nil, NotEnouhgMoney
+		}
+		bUser, err := petya.DelBalance(count, DopInformation)
+		if err != nil {
+			return bUser, err
+		}
+	case "Transfer":
+		if petya.Balance < count {
+			return nil, NotEnouhgMoney
+		}
+		if _, ok := p.users[DopInformation]; !ok {
+			return nil, errors.New((ThisNameIsNotExist).Error() + DopInformation)
+		}
+
+		bUser, err := petya.PerevodBalance(count, DopInformation)
+
+		if err != nil {
+			return bUser, err
+		}
 	}
 
-	return petya, nil
+	b, err := json.MarshalIndent(petya, "", "    ")
+
+	if err != nil {
+		panic(err)
+	}
+
+	return b, nil
 }
 
-func (p *polzovately) DeleteUser(username string) error {
+func (p *Polzovately) DeleteUser(username string) error {
 
 	if _, ok := p.users[username]; !ok {
 		return errors.New((ThisNameIsNotExist).Error() + username)
