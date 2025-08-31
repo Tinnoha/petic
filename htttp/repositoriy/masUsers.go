@@ -72,6 +72,24 @@ func (p *Polzovately) GetUsers() (map[string]user, []byte) {
 
 	ctx, ctxcancel := context.WithCancel(context.Background())
 
+	writer := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:      []string{"localhost:9092"},
+		Topic:        "UsersGet",
+		Balancer:     &kafka.Hash{},
+		RequiredAcks: 1,
+	})
+
+	defer writer.Close()
+
+	err := writer.WriteMessages(ctx, kafka.Message{
+		Topic: "UsersGet",
+		Value: []byte(string("GetUsers")),
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
 		Topic:   "Users",

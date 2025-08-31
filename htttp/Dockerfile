@@ -1,1 +1,7 @@
-FROM golang
+FROM golang:1.24.3-alpine
+
+WORKDIR /app
+
+COPY . .
+
+CMD ["go","run","main.go"]
