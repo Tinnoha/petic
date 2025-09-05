@@ -53,6 +53,7 @@ func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
+		Topic:   "NewUserAnswer",
 	})
 
 	msg1, err := reader.ReadMessage(ctx)
