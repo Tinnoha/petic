@@ -4,9 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"sync"
 
 	"github.com/segmentio/kafka-go"
 )
+
+func StartKafka(db database) {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go GetUsersGo(db, &wg)
+	wg.Add(1)
+	go PostUsersGo(db, &wg)
+	wg.Add(1)
+	go AddCashGo(db, &wg)
+	wg.Add(1)
+	go DelBalance(db, &wg)
+	wg.Add(1)
+	go TransferCashGo(db, &wg)
+
+	wg.Wait()
+	StopGo(db)
+}
 
 func GetKafkaRequest(TopicName string) kafka.Message {
 	reader := kafka.NewReader(kafka.ReaderConfig{
@@ -54,7 +72,8 @@ func PostKafkaRequest(TopicName string, Key string, Value []byte) {
 	ctxcancel()
 }
 
-func GetUsersGo(db database) {
+func GetUsersGo(db database, wg *sync.WaitGroup) {
+	defer wg.Done()
 	GetKafkaRequest("UsersGet")
 
 	err := db.GetUsers()
@@ -64,7 +83,8 @@ func GetUsersGo(db database) {
 	}
 }
 
-func PostUsersGo(db database) {
+func PostUsersGo(db database, wg *sync.WaitGroup) {
+	defer wg.Done()
 	msg := GetKafkaRequest("NewUser")
 	var user User
 
@@ -89,7 +109,8 @@ func PostUsersGo(db database) {
 	PostKafkaRequest("NewUserAnswer", "", b)
 }
 
-func TransferCashGo(db database) {
+func TransferCashGo(db database, wg *sync.WaitGroup) {
+	defer wg.Done()
 	msg := GetKafkaRequest("PerevodBalance")
 	transferdto := PerevodDTO{}
 
@@ -107,7 +128,8 @@ func TransferCashGo(db database) {
 
 }
 
-func AddCashGo(db database) {
+func AddCashGo(db database, wg *sync.WaitGroup) {
+	defer wg.Done()
 	msg := GetKafkaRequest("AddBalance")
 	cash := CashReciverDTO{}
 
@@ -134,7 +156,8 @@ func AddCashGo(db database) {
 	PostKafkaRequest("AddBalanceAnswer", string(msg.Key), b)
 }
 
-func DelBalance(db database) {
+func DelBalance(db database, wg *sync.WaitGroup) {
+	defer wg.Done()
 	msg := GetKafkaRequest("DelBalance")
 	baldto := BuyingOperationDTO{}
 
@@ -158,4 +181,25 @@ func DelBalance(db database) {
 		panic(err)
 	}
 	PostKafkaRequest("DelBalanceAnswer", string(msg.Key), b)
+}
+
+func DeleteGo(db database, wg *sync.WaitGroup) {
+	defer wg.Done()
+	msg := GetKafkaRequest("DeleteUser")
+
+	err := db.DeleteUser(string(msg.Key))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func StopGo(db database) {
+	GetKafkaRequest("DeleteUser")
+
+	err := db.Stop()
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }

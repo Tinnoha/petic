@@ -1,1 +1,44 @@
 version: '3'
+
+services:
+  # Базы данных (официальные образы)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Микросервисы (ваши кастомные образы)
+  http-service:
+    build: ./htttp
+    ports:
+      - '8080:8080'
+    depends_on:
+      - db-service
+    environment:
+      DB_SERVICE_URL: 'db-service:50051'
+
+  db-service:
+    build: ./databases
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      REDIS_URL: 'redis:6379'
+      POSTGRES_URL: 'postgres:5432'
+
+volumes:
+  redis_data:
+  postgres_data:

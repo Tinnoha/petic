@@ -45,8 +45,6 @@ func (u *user) AddBalanceCash(count int) ([]byte, error) {
 		RequiredAcks: 1,
 	})
 
-	defer writer.Close()
-
 	err := writer.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(string(u.Username)),
 		Topic: "AddBalance",
@@ -59,10 +57,13 @@ func (u *user) AddBalanceCash(count int) ([]byte, error) {
 
 	if err != nil {
 		log.Fatal("Error to write Kafka message: ", err)
+		writer.Close()
 		return nil, err
 	}
 
 	fmt.Printf("Пользователь %s удачно положил деньги", u.Username)
+
+	writer.Close()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
@@ -95,8 +96,6 @@ func (u *user) DelBalance(count int, ForWhat string) ([]byte, error) {
 		RequiredAcks: 1,
 	})
 
-	defer writer.Close()
-
 	err := writer.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(string(u.Username)),
 		Topic: "DelBalance",
@@ -105,8 +104,11 @@ func (u *user) DelBalance(count int, ForWhat string) ([]byte, error) {
 
 	if err != nil {
 		log.Fatal("Error to write Kafka message: ", err)
+		writer.Close()
 		return nil, err
 	}
+
+	writer.Close()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
@@ -141,8 +143,6 @@ func (u *user) PerevodBalance(count int, usernameTo string) ([]byte, error) {
 		RequiredAcks: 1,
 	})
 
-	defer writer.Close()
-
 	perevoddto := PerevodDTO{
 		UserFrom: u.Username,
 		UserTo:   usernameTo,
@@ -152,6 +152,7 @@ func (u *user) PerevodBalance(count int, usernameTo string) ([]byte, error) {
 	mes, err := json.MarshalIndent(perevoddto, "", "    ")
 
 	if err != nil {
+		writer.Close()
 		panic(err)
 	}
 
@@ -163,8 +164,11 @@ func (u *user) PerevodBalance(count int, usernameTo string) ([]byte, error) {
 
 	if err != nil {
 		log.Fatal("Error to write Kafka message: ", err)
+		writer.Close()
 		return nil, err
 	}
+
+	writer.Close()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},

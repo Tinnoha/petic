@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"htttp/repositoriy"
+	"htttp/htps/repositoriy"
 	"log"
 	"net/http"
 	"time"
@@ -273,4 +273,23 @@ func (h *HTTPHandlers) HandlerDeleteUser(w http.ResponseWriter, r *http.Request)
 			HTTPError(w, err, http.StatusInternalServerError)
 		}
 	}
+}
+
+/*
+-patern: "/users/stop"
+-metgod: GET
+-info: -
+
+OK:
+-Status: 204 No content
+-Answer: -
+
+Fail:
+-Status: 500 InternalServerError
+-Answer: JSON with message error and time
+*/
+func (h *HTTPHandlers) HandlerStop(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("HandlerStop\n")
+
+	h.users.Stop()
 }

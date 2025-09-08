@@ -1,10 +1,16 @@
 package databases
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"time"
+
+	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 type User struct {
@@ -17,11 +23,19 @@ type User struct {
 }
 
 type database struct {
-	database *sql.DB
+	databasePostgr *sql.DB
+	databaseRedis  *redis.Client
 }
 
 func NewDatabase() database {
 	db, err := sql.Open("postgres", "user=postgres dbname=postgres sslmode=disable")
+	if err != nil {
+		log.Fatal(err)
+	}
+	cfg := NewConfigRedis("redis:6379", "1234", "timoha", 0, 5, 10*time.Second, 5*time.Second)
+
+	redis, err := NewClientRedis(context.Background(), *cfg)
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,12 +45,13 @@ func NewDatabase() database {
 	}
 
 	return database{
-		database: db,
+		databasePostgr: db,
+		databaseRedis:  redis,
 	}
 }
 
 func (db *database) Start() error {
-	rezult, err := db.database.Exec(`
+	rezult, err := db.databasePostgr.Exec(`
 	Create table useris(
 		ID SERIAL PRIMARY KEY,
 		FIO varchar(100) NOT NULL,
@@ -57,20 +72,40 @@ func (db *database) Start() error {
 }
 
 func (db *database) GetOneUser(Username string) User {
-	Row := db.database.QueryRow("SELECT * FROM useri WHERE Username = $1", Username)
+	val, err := db.databaseRedis.HGetAll(context.Background(), Username).Result()
+	id, _ := strconv.Atoi(val["ID"])
+	age, _ := strconv.Atoi(val["Age"])
+	balance, _ := strconv.ParseFloat(val["Balance"], 64)
+	if err == nil {
+		fmt.Println("Взято из redis-хранилища")
+		return User{
+			ID:       id,
+			FIO:      val["FIO"],
+			Username: val["Username"],
+			Email:    val["Email"],
+			Age:      age,
+			Balance:  float64(balance),
+		}
+	}
+
+	Row := db.databasePostgr.QueryRow("SELECT * FROM useri WHERE Username = $1", Username)
 	var user User
 
-	err := Row.Scan(&user.FIO, &user.Username, &user.Email, &user.Age)
+	err = Row.Scan(&user.FIO, &user.Username, &user.Email, &user.Age)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	db.databaseRedis.HSet(context.Background(), user.Username, "ID", strconv.Itoa(user.ID), "FIO", user.FIO, "Username", user.Username, "Email", user.Email, "Age", strconv.Itoa(user.Age), "Balance", strconv.FormatFloat(user.Balance, 'f', -1, 64))
+
+	db.databaseRedis.Expire(context.Background(), user.Username, 30*time.Second)
+
 	return user
 }
 
 func (db *database) Insert(fio string, Username string, Email string, Age int) error {
-	rezult, err := db.database.Exec("INSERT INTO useris (fio, username, email, age) VALUES ($1, $2, $3, $4)",
+	rezult, err := db.databasePostgr.Exec("INSERT INTO useris (fio, username, email, age) VALUES ($1, $2, $3, $4)",
 		fio,
 		Username,
 		Email,
@@ -87,7 +122,7 @@ func (db *database) Insert(fio string, Username string, Email string, Age int) e
 }
 
 func (db *database) AddCash(username string, count int) error {
-	rezult, err := db.database.Exec(`
+	rezult, err := db.databasePostgr.Exec(`
 			UPDATE useris
 			SET BALANCE = Balance + $1
 			WHERE USERNAME = $2
@@ -105,7 +140,7 @@ func (db *database) AddCash(username string, count int) error {
 }
 
 func (db *database) DelCash(username string, count int) error {
-	rezult, err := db.database.Exec(`
+	rezult, err := db.databasePostgr.Exec(`
 			UPDATE useris
 			SET BALANCE = Balance - $1
 			WHERE USERNAME = $2
@@ -123,7 +158,7 @@ func (db *database) DelCash(username string, count int) error {
 }
 
 func (db *database) TransferCash(From string, To string, count int) error {
-	rezult, err := db.database.Exec(`
+	rezult, err := db.databasePostgr.Exec(`
 			BEGIN;
 			UPDATE useris
 			SET BALANCE = Balance - $1
@@ -147,7 +182,7 @@ func (db *database) TransferCash(From string, To string, count int) error {
 }
 
 func (db *database) GetUsers() error {
-	rows, err := db.database.Query("SELECT ID, FIO, Username, Email, Age, balance from useri")
+	rows, err := db.databasePostgr.Query("SELECT ID, FIO, Username, Email, Age, balance from useri")
 	if err != nil {
 		return fmt.Errorf("error: %s", err)
 	}
@@ -178,14 +213,28 @@ func (db *database) GetUsers() error {
 
 }
 
-func (db *database) Stop() error {
-	rezult, err := db.database.Exec("DROP TABLE useris")
+func (db *database) DeleteUser(username string) error {
+	rezult, err := db.databasePostgr.Exec("DELETE FROM useri  WHERE USERNAME = $1", username)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println(rezult)
+
+	return nil
+}
+
+func (db *database) Stop() error {
+	rezult, err := db.databasePostgr.Exec("DROP TABLE useris")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(rezult)
+
+	db.databasePostgr.Close()
 
 	return nil
 }

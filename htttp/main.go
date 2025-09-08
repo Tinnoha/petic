@@ -1,11 +1,14 @@
-package htttp
+package main
 
-import "htttp/repositoriy"
+import (
+	htps "htttp/htps"
+	"htttp/htps/repositoriy"
+)
 
 func main() {
 	pol := repositoriy.NewPolzovately()
-	httpp := NewHTTPHandler(pol)
-	serv := NewHTTPServer(httpp)
+	httpp := htps.NewHTTPHandler(pol)
+	serv := htps.NewHTTPServer(httpp)
 
 	serv.Start()
 }

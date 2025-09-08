@@ -33,8 +33,6 @@ func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 		RequiredAcks: 1,
 	})
 
-	defer writer.Close()
-
 	msg, err := json.MarshalIndent(vasya, "", "    ")
 
 	if err != nil {
@@ -50,6 +48,8 @@ func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	writer.Close()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
@@ -80,16 +80,17 @@ func (p *Polzovately) GetUsers() (map[string]user, []byte) {
 		RequiredAcks: 1,
 	})
 
-	defer writer.Close()
-
 	err := writer.WriteMessages(ctx, kafka.Message{
 		Topic: "UsersGet",
 		Value: []byte(string("GetUsers")),
 	})
 
 	if err != nil {
+		writer.Close()
 		log.Fatal(err)
 	}
+
+	writer.Close()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
@@ -191,4 +192,27 @@ func (p *Polzovately) DeleteUser(username string) error {
 	delete(p.users, username)
 
 	return nil
+}
+
+func (p *Polzovately) Stop() {
+	ctx, ctxcancel := context.WithCancel(context.Background())
+
+	writer := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:      []string{"localhost:9092"},
+		RequiredAcks: 1,
+		Balancer:     &kafka.Hash{},
+		Topic:        "Stop",
+	})
+
+	defer writer.Close()
+
+	err := writer.WriteMessages(ctx, kafka.Message{
+		Topic: "Stop",
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctxcancel()
 }
