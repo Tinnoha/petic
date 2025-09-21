@@ -50,6 +50,26 @@ func (h *HttpHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *HttpHandler) GetOneUsers(w http.ResponseWriter, r *http.Request) {
+	username, ok := mux.Vars(r)["Username"]
+
+	if !ok {
+		HTTPError(w, errors.New("Ошибка нет такого юзера ты пиздабол"), http.StatusBadRequest)
+	}
+
+	answer, err := h.database.GetOneUser(username)
+
+	if err != nil {
+		HTTPError(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(answer); err != nil {
+		fmt.Println("Error to write answer from database")
+	}
+}
+
 func (h *HttpHandler) Insert(w http.ResponseWriter, r *http.Request) {
 	var userdto databases.UserDTO
 	err := json.NewDecoder(r.Body).Decode(&userdto)
@@ -87,9 +107,7 @@ func (h *HttpHandler) AddCash(w http.ResponseWriter, r *http.Request) {
 		HTTPError(w, err, http.StatusBadGateway)
 	}
 
-	user := h.database.GetOneUser(username)
-
-	b, err := json.MarshalIndent(user, "", "    ")
+	b, err := h.database.GetOneUser(username)
 
 	if err != nil {
 		HTTPError(w, err, http.StatusBadGateway)
@@ -117,9 +135,7 @@ func (h *HttpHandler) Buy(w http.ResponseWriter, r *http.Request) {
 		HTTPError(w, err, http.StatusBadGateway)
 	}
 
-	user := h.database.GetOneUser(username)
-
-	b, err := json.MarshalIndent(user, "", "    ")
+	b, err := h.database.GetOneUser(username)
 
 	if err != nil {
 		HTTPError(w, err, http.StatusBadGateway)
@@ -147,9 +163,7 @@ func (h *HttpHandler) TransferCash(w http.ResponseWriter, r *http.Request) {
 		HTTPError(w, err, http.StatusBadGateway)
 	}
 
-	user := h.database.GetOneUser(username)
-
-	b, err := json.MarshalIndent(user, "", "    ")
+	b, err := h.database.GetOneUser(username)
 
 	if err != nil {
 		HTTPError(w, err, http.StatusBadGateway)

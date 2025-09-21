@@ -105,7 +105,6 @@ func (h *HTTPHandlers) HandlerNewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("Пользователь создан:\n")
-	fmt.Println(string(b))
 
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(b); err != nil {
@@ -144,15 +143,15 @@ func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request
 	}
 
 	serega, err := h.users.EditBalance(cashDTO.Count, username, "Cash", "")
+	fmt.Println(string(serega))
 
 	if err != nil {
 		HTTPError(w, err, http.StatusInternalServerError)
 	}
 
 	fmt.Println("Пользователь пополнил баланс:")
-	fmt.Println(string(serega))
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 	if _, err := w.Write(serega); err != nil {
 		log.Fatal(err)
 	}

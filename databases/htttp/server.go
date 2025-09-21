@@ -21,6 +21,7 @@ func (s *HttpServer) Run() {
 
 	router.Path("/users").Methods(http.MethodGet).HandlerFunc(s.HttpHandler.GetUsers)
 	router.Path("/users").Methods(http.MethodPost).HandlerFunc(s.HttpHandler.Insert)
+	router.Path("/users/{Username}").Methods(http.MethodGet).HandlerFunc(s.HttpHandler.GetOneUsers)
 
 	router.Path("/users/cash/{Username}").Methods(http.MethodPatch).HandlerFunc(s.HttpHandler.AddCash)
 	router.Path("/users/buy/{Username}").Methods(http.MethodPatch).HandlerFunc(s.HttpHandler.Buy)

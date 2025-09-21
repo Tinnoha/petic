@@ -124,7 +124,7 @@ func (db *Database) Start() error {
 	return nil
 }
 
-func (db *Database) GetOneUser(Username string) User {
+func (db *Database) GetOneUser(Username string) ([]byte, error) {
 	val, err := db.databaseRedis.HGetAll(context.Background(), Username).Result()
 	if err == nil && len(val) > 0 {
 
@@ -134,7 +134,7 @@ func (db *Database) GetOneUser(Username string) User {
 		age, _ := strconv.Atoi(val["Age"])
 		balance, _ := strconv.ParseFloat(val["Balance"], 64)
 
-		return User{
+		nastya := User{
 			ID:       id,
 			FIO:      val["FIO"],
 			Username: val["Username"],
@@ -142,6 +142,14 @@ func (db *Database) GetOneUser(Username string) User {
 			Age:      age,
 			Balance:  float64(balance),
 		}
+
+		b, err := json.MarshalIndent(nastya, "", "    ")
+
+		if err != nil {
+			panic(err)
+		}
+
+		return b, nil
 	} else {
 		Row := db.databasePostgr.QueryRow("SELECT * FROM useris WHERE Username = $1", Username)
 		var user User
@@ -149,14 +157,20 @@ func (db *Database) GetOneUser(Username string) User {
 		err = Row.Scan(&user.ID, &user.FIO, &user.Username, &user.Email, &user.Age, &user.Balance)
 
 		if err != nil {
-			fmt.Println("Та самая ошибка", err)
+			return nil, err
 		}
 
 		db.databaseRedis.HSet(context.Background(), user.Username, "ID", strconv.Itoa(user.ID), "FIO", user.FIO, "Username", user.Username, "Email", user.Email, "Age", strconv.Itoa(user.Age), "Balance", strconv.FormatFloat(user.Balance, 'f', -1, 64))
 
 		db.databaseRedis.Expire(context.Background(), user.Username, 30*time.Second)
 
-		return user
+		b, err := json.MarshalIndent(user, "", "    ")
+
+		if err != nil {
+			panic(err)
+		}
+
+		return b, nil
 	}
 }
 

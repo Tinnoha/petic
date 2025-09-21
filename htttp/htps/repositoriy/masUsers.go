@@ -112,6 +112,42 @@ func (p *Polzovately) GetUsers() ([]byte, error) {
 	return body, nil
 }
 
+func (p *Polzovately) GetOneUser(username string) ([]byte, error) {
+	if _, ok := p.users[username]; !ok {
+		return nil, errors.New((ThisNameIsNotExist).Error() + username)
+	}
+
+	client := &http.Client{}
+
+	urlstr := "http://db-service:8081/user/" + username
+
+	req, err := http.NewRequest(http.MethodGet, urlstr, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		_, err := io.ReadAll(resp.Body)
+		return nil, err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
+}
+
 func (p *Polzovately) EditBalance(count int, username string, typeOfOperation string, DopInformation string) ([]byte, error) {
 	if _, ok := p.users[username]; !ok {
 		return nil, errors.New((ThisNameIsNotExist).Error() + username)
@@ -122,8 +158,7 @@ func (p *Polzovately) EditBalance(count int, username string, typeOfOperation st
 	switch typeOfOperation {
 	case "Cash":
 		bUser, err := petya.AddBalanceCash(count)
-
-		if err != nil {
+		if err == nil {
 			return bUser, err
 		}
 	case "Buy":
