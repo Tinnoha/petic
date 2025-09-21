@@ -1,12 +1,12 @@
 package repositoriy
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
-	"log"
-
-	"github.com/segmentio/kafka-go"
+	"fmt"
+	"io"
+	"net/http"
 )
 
 type Polzovately struct {
@@ -20,98 +20,96 @@ func NewPolzovately() Polzovately {
 }
 
 func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
+	// проверка на существование ника
 	if _, ok := p.users[vasya.Username]; ok {
 		return nil, ThisNameIsExist
 	}
 
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	p.users[vasya.Username] = vasya
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		Topic:        "NewUser",
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: 1,
-	})
+	// настройка http запроса
+	client := &http.Client{}
 
-	msg, err := json.MarshalIndent(vasya, "", "    ")
+	// создаем юрл куда будем отправлять запрос на другой микросервис
+	urlstr := "http://db-service:8081/users"
+
+	// Переводим данные из стуктуры в байты и обрабатываем ошибку
+	b, err := json.MarshalIndent(vasya, "", "    ")
 
 	if err != nil {
 		panic(err)
 	}
 
-	err = writer.WriteMessages(ctx, kafka.Message{
-		Topic: "NewUser",
-		Key:   []byte(vasya.Username),
-		Value: msg,
-	})
+	// переводим в байты в интерфейс ио.Реадер чтоб можно было отправить запроом информацию
+	data := bytes.NewReader(b)
+
+	// формирую запрос и обрабатываю ошибку
+	req, err := http.NewRequest(http.MethodPost, urlstr, data)
 
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	writer.Close()
-
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   "NewUserAnswer",
-	})
-
-	msg1, err := reader.ReadMessage(ctx)
-
-	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
-	ctxcancel()
+	// ставлю тип отправляемого файла
+	req.Header.Set("Content-Type", "application/json")
 
-	return msg1.Value, nil
+	// Выполняю запрос и обрабатываю ошибку
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// всегда закрывать тело запроса
+	defer req.Body.Close()
+
+	// закрываю тело ответа
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, err := io.ReadAll(resp.Body)
+		return body, err
+	}
+	// считываю тело ответа
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// отдаю ответ
+	return body, nil
 }
 
-func (p *Polzovately) GetUsers() (map[string]user, []byte) {
-	useri := make(map[string]user)
+func (p *Polzovately) GetUsers() ([]byte, error) {
 
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	client := &http.Client{}
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		Topic:        "UsersGet",
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: 1,
-	})
+	urlstr := "http://db-service:8081/users"
 
-	err := writer.WriteMessages(ctx, kafka.Message{
-		Topic: "UsersGet",
-		Value: []byte(string("GetUsers")),
-	})
+	req, err := http.NewRequest(http.MethodGet, urlstr, nil)
 
 	if err != nil {
-		writer.Close()
-		log.Fatal(err)
+		return nil, err
 	}
 
-	writer.Close()
-
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   "Users",
-	})
-
-	defer reader.Close()
-
-	msg, err := reader.ReadMessage(ctx)
+	resp, err := client.Do(req)
 
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	ctxcancel()
-
-	for k, v := range p.users {
-		useri[k] = v
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		return body, err
 	}
 
-	return useri, msg.Value
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func (p *Polzovately) EditBalance(count int, username string, typeOfOperation string, DopInformation string) ([]byte, error) {
@@ -161,58 +159,54 @@ func (p *Polzovately) EditBalance(count int, username string, typeOfOperation st
 }
 
 func (p *Polzovately) DeleteUser(username string) error {
-
 	if _, ok := p.users[username]; !ok {
 		return errors.New((ThisNameIsNotExist).Error() + username)
 	}
 
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	client := &http.Client{}
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		RequiredAcks: 1,
-		Balancer:     &kafka.Hash{},
-		Topic:        "DeleteUser",
-	})
+	urlstr := "db-service:8081/users/" + username
 
-	defer writer.Close()
-
-	err := writer.WriteMessages(ctx, kafka.Message{
-		Topic: "DeleteUser",
-		Key:   []byte(username),
-		Value: []byte(username),
-	})
+	req, err := http.NewRequest(http.MethodDelete, urlstr, nil)
 
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	ctxcancel()
+	resp, err := client.Do(req)
 
-	delete(p.users, username)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		_, err := io.ReadAll(resp.Body)
+		return err
+	}
+
+	_, err = io.ReadAll(resp.Body)
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (p *Polzovately) Stop() {
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	client := &http.Client{}
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		RequiredAcks: 1,
-		Balancer:     &kafka.Hash{},
-		Topic:        "Stop",
-	})
+	urlstr := "db-service:8081/stop"
 
-	defer writer.Close()
+	req, _ := http.NewRequest(http.MethodDelete, urlstr, nil)
 
-	err := writer.WriteMessages(ctx, kafka.Message{
-		Topic: "Stop",
-	})
+	resp, _ := client.Do(req)
 
-	if err != nil {
-		log.Fatal(err)
+	if resp.StatusCode != http.StatusNoContent {
+		fmt.Println("Неудача закончить")
 	}
 
-	ctxcancel()
+	req.Body.Close()
 }

@@ -23,7 +23,7 @@ func (s *HTTPServer) Start() {
 	router.Path("/users").Methods(http.MethodPost).HandlerFunc(s.HTTPHandler.HandlerNewUser)
 	router.Path("/users/cash/{username}").Methods(http.MethodPatch).HandlerFunc(s.HTTPHandler.HandlerCashReciver)
 	router.Path("/users/transfer/{username}").Methods(http.MethodPatch).HandlerFunc(s.HTTPHandler.HandlerTransferOperation)
-	router.Path("/users/buy/{username}").Methods(http.MethodPatch).HandlerFunc(s.HTTPHandler.HandlerTransferOperation)
+	router.Path("/users/buy/{username}").Methods(http.MethodPatch).HandlerFunc(s.HTTPHandler.HandlerBuynigOperation)
 	router.Path("/users/{username}").Methods(http.MethodDelete).HandlerFunc(s.HTTPHandler.HandlerDeleteUser)
 
 	http.ListenAndServe(":8080", router)

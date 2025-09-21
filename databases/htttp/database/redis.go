@@ -11,7 +11,6 @@ import (
 type configOfRedis struct {
 	Addr        string        `yaml:"addr"`
 	Password    string        `yaml:"password"`
-	User        string        `yaml:"user"`
 	DB          int           `yaml:"db"`
 	MaxRetries  int           `yaml:"max_retries"`
 	DialTimeout time.Duration `yaml:"dial_timeout"`
@@ -26,11 +25,10 @@ type configOfRedis struct {
 // DialTimeout - время прерыва между попытками подключения
 // Timeout - Время для записи и чтения
 
-func NewConfigRedis(addr string, password string, user string, db int, maxretries int, dialTimeout time.Duration, timeout time.Duration) *configOfRedis {
+func NewConfigRedis(addr string, password string, db int, maxretries int, dialTimeout time.Duration, timeout time.Duration) *configOfRedis {
 	return &configOfRedis{
 		Addr:        addr,
 		Password:    password,
-		User:        user,
 		DB:          db,
 		MaxRetries:  maxretries,
 		DialTimeout: dialTimeout,
@@ -43,7 +41,6 @@ func NewClientRedis(ctx context.Context, cfg configOfRedis) (*redis.Client, erro
 		Addr:         cfg.Addr,
 		Password:     cfg.Password,
 		DB:           cfg.DB,
-		Username:     cfg.User,
 		MaxRetries:   cfg.MaxRetries,
 		DialTimeout:  cfg.DialTimeout,
 		ReadTimeout:  cfg.Timeout,

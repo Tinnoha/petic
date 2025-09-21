@@ -1,13 +1,11 @@
 package repositoriy
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
-	"fmt"
-	"log"
+	"io"
+	"net/http"
 	"sync"
-
-	"github.com/segmentio/kafka-go"
 )
 
 type user struct {
@@ -34,159 +32,98 @@ func NewUser(fio string, username string, email string, age int) user {
 }
 
 func (u *user) AddBalanceCash(count int) ([]byte, error) {
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	client := &http.Client{}
+	urlstr := "http://db-service:8081/users/cash/" + u.Username
 
-	fmt.Printf("Пользователь %s пытается положить на счет %d денег!\n", u.Username, count)
+	cout := CashReciverDTO{Count: count}
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		Topic:        "AddBalance",
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: 1,
-	})
-
-	err := writer.WriteMessages(ctx, kafka.Message{
-		Key:   []byte(string(u.Username)),
-		Topic: "AddBalance",
-		Value: []byte(string(count)),
-	})
-
-	u.mtx.Lock()
-	u.Balance += count
-	u.mtx.Unlock()
+	b, err := json.MarshalIndent(cout, "", "    ")
 
 	if err != nil {
-		log.Fatal("Error to write Kafka message: ", err)
-		writer.Close()
 		return nil, err
 	}
 
-	fmt.Printf("Пользователь %s удачно положил деньги", u.Username)
+	data := bytes.NewReader(b)
 
-	writer.Close()
-
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   "AddBalanceAnswer",
-	})
-
-	defer reader.Close()
-
-	msg, err := reader.ReadMessage(ctx)
+	req, err := http.NewRequest(http.MethodPatch, urlstr, data)
 
 	if err != nil {
-		log.Fatal("Error to write Kafka message: ", err)
 		return nil, err
 	}
 
-	ctxcancel()
+	resp, err := client.Do(req)
 
-	return msg.Value, nil
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func (u *user) DelBalance(count int, ForWhat string) ([]byte, error) {
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	urlstr := "http://db-service:8081/users/buy/" + u.Username
 
-	fmt.Printf("Пользователь %s пытается купить %s за %d денег!\n", u.Username, ForWhat, count)
+	cout := BuyingOperationDTO{Count: count, ForWhat: ForWhat}
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		Topic:        "DelBalance",
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: 1,
-	})
-
-	err := writer.WriteMessages(ctx, kafka.Message{
-		Key:   []byte(string(u.Username)),
-		Topic: "DelBalance",
-		Value: []byte(string(count)),
-	})
+	b, err := json.MarshalIndent(cout, "", "    ")
 
 	if err != nil {
-		log.Fatal("Error to write Kafka message: ", err)
-		writer.Close()
 		return nil, err
 	}
 
-	writer.Close()
+	data := bytes.NewReader(b)
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   "DelBalanceAnswer",
-	})
-
-	defer reader.Close()
-
-	msg, err := reader.ReadMessage(ctx)
+	req, err := http.NewRequest(http.MethodPatch, urlstr, data)
 
 	if err != nil {
-		log.Fatal("Error to write Kafka message: ", err)
 		return nil, err
 	}
 
-	ctxcancel()
+	defer req.Body.Close()
 
-	fmt.Printf("Пользователь %s удачно купил %s деньги", u.Username, ForWhat)
+	body, err := io.ReadAll(req.Body)
 
-	return msg.Value, nil
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func (u *user) PerevodBalance(count int, usernameTo string) ([]byte, error) {
-	ctx, ctxcancel := context.WithCancel(context.Background())
+	urlstr := "http://db-service:8081/users/transfer/" + u.Username
 
-	fmt.Printf("Пользователь %s пытается перевести пользователю %s %d денег!\n", u.Username, usernameTo, count)
+	cout := PerevodDTO{UserTo: usernameTo, UserFrom: u.Username, HowMuch: count}
 
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{"localhost:9092"},
-		Topic:        "PerevodBalance",
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: 1,
-	})
-
-	perevoddto := PerevodDTO{
-		UserFrom: u.Username,
-		UserTo:   usernameTo,
-		HowMuch:  count,
-	}
-
-	mes, err := json.MarshalIndent(perevoddto, "", "    ")
+	b, err := json.MarshalIndent(cout, "", "    ")
 
 	if err != nil {
-		writer.Close()
-		panic(err)
-	}
-
-	err = writer.WriteMessages(ctx, kafka.Message{
-		Key:   []byte(string(u.Username)),
-		Topic: "PerevodBalance",
-		Value: []byte(mes),
-	})
-
-	if err != nil {
-		log.Fatal("Error to write Kafka message: ", err)
-		writer.Close()
 		return nil, err
 	}
 
-	writer.Close()
+	data := bytes.NewReader(b)
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   "PerevodBalanceAnswer",
-	})
-
-	defer reader.Close()
-
-	msg, err := reader.ReadMessage(ctx)
+	req, err := http.NewRequest(http.MethodPatch, urlstr, data)
 
 	if err != nil {
-		log.Fatal("Error to write Kafka message: ", err)
 		return nil, err
 	}
 
-	ctxcancel()
+	defer req.Body.Close()
 
-	fmt.Printf("Пользователь %s удачно перевел пользователю %s %d деньги", u.Username, usernameTo, count)
+	body, err := io.ReadAll(req.Body)
 
-	return msg.Value, nil
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }

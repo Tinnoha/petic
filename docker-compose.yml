@@ -1,34 +1,24 @@
-version: '3'
+version: '3.8'
 
 services:
-  # Базы данных (официальные образы)
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
+    command: redis-server --requirepass admin123
     volumes:
       - redis_data:/data
 
   postgres:
     image: postgres:15-alpine
     ports:
-      - '5432:5432'
+      - "5432:5432"
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1234
+      POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  # Микросервисы (ваши кастомные образы)
-  http-service:
-    build: ./htttp
-    ports:
-      - '8080:8080'
-    depends_on:
-      - db-service
-    environment:
-      DB_SERVICE_URL: 'db-service:50051'
 
   db-service:
     build: ./databases
@@ -36,8 +26,21 @@ services:
       - redis
       - postgres
     environment:
-      REDIS_URL: 'redis:6379'
-      POSTGRES_URL: 'postgres:5432'
+      REDIS_URL: "redis:6379"
+      REDIS_PASSWORD: "admin123"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "postgres"
+      POSTGRES_PORT: "5432"
+  http-service:
+    build: ./htttp  # или ./htttp - проверьте путь к папке
+    ports:
+      - "8080:8080"  # проброс порта на хост
+    depends_on:
+      - db-service
+    environment:
+      DB_SERVICE_URL: "db-service:50051"  # подключение к db-service
 
 volumes:
   redis_data:

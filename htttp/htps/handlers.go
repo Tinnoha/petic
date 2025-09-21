@@ -53,10 +53,11 @@ Fail:
 
 func (h *HTTPHandlers) HandlerGetAllUsers(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("HandlerGetAllUsers\n")
-	users, b := h.users.GetUsers()
+	b, err := h.users.GetUsers()
 
-	fmt.Println("Пользователи:")
-	fmt.Println(users, "\n")
+	if err != nil {
+		HTTPError(w, err, http.StatusInternalServerError)
+	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(b); err != nil {
@@ -127,7 +128,11 @@ Fail:
 */
 func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("HandlerCashReciver\n")
-	username := mux.Vars(r)["username"]
+	username, ok := mux.Vars(r)["username"]
+
+	if !ok {
+		fmt.Println("Ты пиздаюол")
+	}
 
 	cashDTO := repositoriy.CashReciverDTO{}
 
@@ -144,7 +149,7 @@ func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request
 		HTTPError(w, err, http.StatusInternalServerError)
 	}
 
-	fmt.Println("Пользователь пополнил баланс:\n")
+	fmt.Println("Пользователь пополнил баланс:")
 	fmt.Println(string(serega))
 
 	w.WriteHeader(http.StatusOK)

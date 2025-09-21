@@ -1,8 +1,15 @@
 package main
 
-import database "databases/database"
+import (
+	"databases/htttp"
+	database "databases/htttp/database"
+)
 
 func main() {
 	db := database.NewDatabase()
-	database.StartKafka(db)
+	db.Start()
+	hh := htttp.NewHttpHandler(db)
+	hs := htttp.NewHttpServer(*hh)
+
+	hs.Run()
 }
