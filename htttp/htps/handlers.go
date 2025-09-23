@@ -90,9 +90,10 @@ func (h *HTTPHandlers) HandlerNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	kolya := repositoriy.NewUser(userdto.FIO, userdto.Username, userdto.Email, userdto.Age)
+	kolya := repositoriy.NewUser(userdto.FIO, userdto.Username, userdto.Email, userdto.Age, 0)
 
 	b, err := h.users.NewUser(kolya)
+	fmt.Println("b in handler", string(b))
 
 	if err != nil {
 		if errors.Is(err, repositoriy.ThisNameIsExist) {
@@ -141,7 +142,7 @@ func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request
 		HTTPError(w, err, http.StatusBadRequest)
 		return
 	}
-
+	fmt.Println("pered editbalance")
 	serega, err := h.users.EditBalance(cashDTO.Count, username, "Cash", "")
 	fmt.Println(string(serega))
 
@@ -153,7 +154,7 @@ func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusAccepted)
 	if _, err := w.Write(serega); err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 }
 
@@ -218,7 +219,7 @@ Fail:
 -Answer: JSON with message error and time
 */
 func (h *HTTPHandlers) HandlerBuynigOperation(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("HandlerTransferOperation\n")
+	fmt.Println("HandlerBuynigOperation\n")
 	username := mux.Vars(r)["username"]
 
 	buyingOperationDTO := repositoriy.BuyingOperationDTO{}
@@ -231,6 +232,7 @@ func (h *HTTPHandlers) HandlerBuynigOperation(w http.ResponseWriter, r *http.Req
 	}
 
 	serega, err := h.users.EditBalance(buyingOperationDTO.Count, username, "Buy", buyingOperationDTO.ForWhat)
+	fmt.Println("serega", string(serega))
 
 	if err != nil {
 		if errors.Is(err, repositoriy.NotEnouhgMoney) {
@@ -242,7 +244,7 @@ func (h *HTTPHandlers) HandlerBuynigOperation(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	fmt.Println("Пользователь перевел деньги ! Юзер:")
+	fmt.Println("Пользователь купил шо то Юзер:")
 	fmt.Println(string(serega))
 
 	w.WriteHeader(http.StatusOK)
@@ -277,6 +279,8 @@ func (h *HTTPHandlers) HandlerDeleteUser(w http.ResponseWriter, r *http.Request)
 			HTTPError(w, err, http.StatusInternalServerError)
 		}
 	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 /*

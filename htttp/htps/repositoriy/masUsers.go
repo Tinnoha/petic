@@ -37,6 +37,7 @@ func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 	b, err := json.MarshalIndent(vasya, "", "    ")
 
 	if err != nil {
+		fmt.Println("Мы в панике")
 		panic(err)
 	}
 
@@ -47,6 +48,7 @@ func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodPost, urlstr, data)
 
 	if err != nil {
+		fmt.Println("Мы в первой ошибке")
 		return nil, err
 	}
 
@@ -56,22 +58,22 @@ func (p *Polzovately) NewUser(vasya user) ([]byte, error) {
 	// Выполняю запрос и обрабатываю ошибку
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Println("Мы во второй ошибке")
 		return nil, err
 	}
-
-	// всегда закрывать тело запроса
-	defer req.Body.Close()
 
 	// закрываю тело ответа
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, err := io.ReadAll(resp.Body)
+		fmt.Println("Мы в третьей ошибке")
 		return body, err
 	}
-	// считываю тело ответа
-	body, err := io.ReadAll(resp.Body)
+	body, err := p.GetOneUser(vasya.Username)
+
 	if err != nil {
+		fmt.Println("Мы во Четвертой ошибке")
 		return nil, err
 	}
 
@@ -118,8 +120,8 @@ func (p *Polzovately) GetOneUser(username string) ([]byte, error) {
 	}
 
 	client := &http.Client{}
-
-	urlstr := "http://db-service:8081/user/" + username
+	fmt.Println("Pered req")
+	urlstr := "http://db-service:8081/users/" + username
 
 	req, err := http.NewRequest(http.MethodGet, urlstr, nil)
 
@@ -128,15 +130,16 @@ func (p *Polzovately) GetOneUser(username string) ([]byte, error) {
 	}
 
 	resp, err := client.Do(req)
-
+	fmt.Println("Posle req")
 	if err != nil {
 		return nil, err
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		_, err := io.ReadAll(resp.Body)
-		return nil, err
+		b, err := io.ReadAll(resp.Body)
+		fmt.Println("Ошибка кода")
+		return b, err
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -153,7 +156,26 @@ func (p *Polzovately) EditBalance(count int, username string, typeOfOperation st
 		return nil, errors.New((ThisNameIsNotExist).Error() + username)
 	}
 
-	petya := p.users[username]
+	var user UserDTO
+	fmt.Println("Pered GetOneUser")
+	b, err := p.GetOneUser(username)
+	fmt.Println("Posle GetOneUser")
+
+	fmt.Println(string(b))
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(b, &user)
+
+	petya := NewUser(user.FIO, user.Username, user.Email, user.Age, user.Balance)
+
+	fmt.Println("petya", petya)
+
+	if err != nil {
+		return nil, err
+	}
 
 	switch typeOfOperation {
 	case "Cash":
@@ -163,12 +185,20 @@ func (p *Polzovately) EditBalance(count int, username string, typeOfOperation st
 		}
 	case "Buy":
 		if petya.Balance < count {
+			fmt.Println(petya.Balance)
 			return nil, NotEnouhgMoney
 		}
 		bUser, err := petya.DelBalance(count, DopInformation)
-		if err != nil {
+
+		fmt.Println("buser", string(bUser))
+
+		fmt.Println("Та самая ошибка назхуй", err)
+		if err == nil {
+			fmt.Println("Вернули buser")
 			return bUser, err
 		}
+
+		fmt.Println("Мы прошли проверку схуяитол")
 	case "Transfer":
 		if petya.Balance < count {
 			return nil, NotEnouhgMoney
@@ -179,12 +209,12 @@ func (p *Polzovately) EditBalance(count int, username string, typeOfOperation st
 
 		bUser, err := petya.PerevodBalance(count, DopInformation)
 
-		if err != nil {
+		if err == nil {
 			return bUser, err
 		}
 	}
 
-	b, err := json.MarshalIndent(petya, "", "    ")
+	b, err = json.MarshalIndent(petya, "", "    ")
 
 	if err != nil {
 		panic(err)
@@ -200,23 +230,26 @@ func (p *Polzovately) DeleteUser(username string) error {
 
 	client := &http.Client{}
 
-	urlstr := "db-service:8081/users/" + username
+	urlstr := "http://db-service:8081/users/" + username
 
 	req, err := http.NewRequest(http.MethodDelete, urlstr, nil)
 
 	if err != nil {
+		fmt.Println("Ошибка 1")
 		return err
 	}
 
 	resp, err := client.Do(req)
 
 	if err != nil {
+		fmt.Println("Ошибка 2", err)
 		return err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent {
+		fmt.Println("Ошибка 3")
 		_, err := io.ReadAll(resp.Body)
 		return err
 	}

@@ -60,6 +60,7 @@ func (h *HttpHandler) GetOneUsers(w http.ResponseWriter, r *http.Request) {
 	answer, err := h.database.GetOneUser(username)
 
 	if err != nil {
+		fmt.Println("Mistake 1")
 		HTTPError(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -83,6 +84,8 @@ func (h *HttpHandler) Insert(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		HTTPError(w, err, http.StatusBadGateway)
 	}
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (h *HttpHandler) AddCash(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +123,7 @@ func (h *HttpHandler) AddCash(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HttpHandler) Buy(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Мы в Buy")
 	username := mux.Vars(r)["Username"]
 
 	var buydto databases.BuyingOperationDTO
@@ -129,6 +133,8 @@ func (h *HttpHandler) Buy(w http.ResponseWriter, r *http.Request) {
 		HTTPError(w, err, http.StatusBadGateway)
 	}
 
+	fmt.Println("buydto", buydto)
+
 	err = h.database.DelCash(username, buydto.Count)
 
 	if err != nil {
@@ -136,6 +142,8 @@ func (h *HttpHandler) Buy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	b, err := h.database.GetOneUser(username)
+
+	fmt.Println("User", string(b))
 
 	if err != nil {
 		HTTPError(w, err, http.StatusBadGateway)

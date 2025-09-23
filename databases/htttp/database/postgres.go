@@ -126,7 +126,7 @@ func (db *Database) Start() error {
 
 func (db *Database) GetOneUser(Username string) ([]byte, error) {
 	val, err := db.databaseRedis.HGetAll(context.Background(), Username).Result()
-	if err == nil && len(val) > 0 {
+	if err == nil && len(val) > 0 && 1 == 0 {
 
 		fmt.Println("Взято из redis-хранилища")
 
@@ -222,9 +222,14 @@ func (db *Database) DelCash(username string, count int) error {
 		count,
 		username,
 	)
+	fmt.Println("Мы в addCash Postgrees1")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Та самая ошибка", err)
+		return err
 	}
+	fmt.Println("Мы в addCash Postgrees2")
+
+	fmt.Println("rexult", rezult)
 
 	fmt.Println(rezult)
 
@@ -232,25 +237,46 @@ func (db *Database) DelCash(username string, count int) error {
 }
 
 func (db *Database) TransferCash(From string, To string, count int) error {
-	rezult, err := db.databasePostgr.Exec(`
-			BEGIN;
-			UPDATE useris
-			SET BALANCE = Balance - $1
-			WHERE USERNAME = $2;
-			UPDATE useris
-			SET BALANCE = Balance + $1
-			WHERE USERNAME = $3;
-			COMMIT;
-			`,
-		From,
-		To,
-		count,
-	)
+	tx, err := db.databasePostgr.Begin()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Ошибка начала транзакции: %v\n", err)
+		return err
 	}
 
-	fmt.Println(rezult)
+	// Первый UPDATE
+	_, err = tx.Exec(`
+		UPDATE useris 
+		SET BALANCE = Balance - $1 
+		WHERE USERNAME = $2`,
+		count, From,
+	)
+	if err != nil {
+		fmt.Printf("Ошибка первого UPDATE: %v\n", err)
+		tx.Rollback()
+		return err
+	}
+
+	// Второй UPDATE
+	_, err = tx.Exec(`
+		UPDATE useris 
+		SET BALANCE = Balance + $1 
+		WHERE USERNAME = $2`,
+		count, To,
+	)
+
+	if err != nil {
+		fmt.Printf("Ошибка второго UPDATE: %v\n", err)
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		fmt.Printf("Ошибка коммита: %v\n", err)
+		return err
+	}
+
+	fmt.Println("Транзакция успешно завершена")
 
 	return nil
 }
