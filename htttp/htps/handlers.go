@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"htttp/repositoriy"
+	"htttp/htps/repositoriy"
 	"log"
 	"net/http"
 	"time"
@@ -53,10 +53,11 @@ Fail:
 
 func (h *HTTPHandlers) HandlerGetAllUsers(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("HandlerGetAllUsers\n")
-	users, b := h.users.GetUsers()
+	b, err := h.users.GetUsers()
 
-	fmt.Println("Пользователи:")
-	fmt.Println(users, "\n")
+	if err != nil {
+		HTTPError(w, err, http.StatusInternalServerError)
+	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(b); err != nil {
@@ -89,9 +90,10 @@ func (h *HTTPHandlers) HandlerNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	kolya := repositoriy.NewUser(userdto.FIO, userdto.Username, userdto.Email, userdto.Age)
+	kolya := repositoriy.NewUser(userdto.FIO, userdto.Username, userdto.Email, userdto.Age, 0)
 
 	b, err := h.users.NewUser(kolya)
+	fmt.Println("b in handler", string(b))
 
 	if err != nil {
 		if errors.Is(err, repositoriy.ThisNameIsExist) {
@@ -104,7 +106,6 @@ func (h *HTTPHandlers) HandlerNewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("Пользователь создан:\n")
-	fmt.Println(string(b))
 
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(b); err != nil {
@@ -127,7 +128,11 @@ Fail:
 */
 func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("HandlerCashReciver\n")
-	username := mux.Vars(r)["username"]
+	username, ok := mux.Vars(r)["username"]
+
+	if !ok {
+		fmt.Println("Ты пиздаюол")
+	}
 
 	cashDTO := repositoriy.CashReciverDTO{}
 
@@ -137,19 +142,19 @@ func (h *HTTPHandlers) HandlerCashReciver(w http.ResponseWriter, r *http.Request
 		HTTPError(w, err, http.StatusBadRequest)
 		return
 	}
-
+	fmt.Println("pered editbalance")
 	serega, err := h.users.EditBalance(cashDTO.Count, username, "Cash", "")
+	fmt.Println(string(serega))
 
 	if err != nil {
 		HTTPError(w, err, http.StatusInternalServerError)
 	}
 
-	fmt.Println("Пользователь пополнил баланс:\n")
-	fmt.Println(string(serega))
+	fmt.Println("Пользователь пополнил баланс:")
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 	if _, err := w.Write(serega); err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 }
 
@@ -214,7 +219,7 @@ Fail:
 -Answer: JSON with message error and time
 */
 func (h *HTTPHandlers) HandlerBuynigOperation(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("HandlerTransferOperation\n")
+	fmt.Println("HandlerBuynigOperation\n")
 	username := mux.Vars(r)["username"]
 
 	buyingOperationDTO := repositoriy.BuyingOperationDTO{}
@@ -227,6 +232,7 @@ func (h *HTTPHandlers) HandlerBuynigOperation(w http.ResponseWriter, r *http.Req
 	}
 
 	serega, err := h.users.EditBalance(buyingOperationDTO.Count, username, "Buy", buyingOperationDTO.ForWhat)
+	fmt.Println("serega", string(serega))
 
 	if err != nil {
 		if errors.Is(err, repositoriy.NotEnouhgMoney) {
@@ -238,7 +244,7 @@ func (h *HTTPHandlers) HandlerBuynigOperation(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	fmt.Println("Пользователь перевел деньги ! Юзер:")
+	fmt.Println("Пользователь купил шо то Юзер:")
 	fmt.Println(string(serega))
 
 	w.WriteHeader(http.StatusOK)
@@ -273,4 +279,25 @@ func (h *HTTPHandlers) HandlerDeleteUser(w http.ResponseWriter, r *http.Request)
 			HTTPError(w, err, http.StatusInternalServerError)
 		}
 	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+/*
+-patern: "/users/stop"
+-metgod: GET
+-info: -
+
+OK:
+-Status: 204 No content
+-Answer: -
+
+Fail:
+-Status: 500 InternalServerError
+-Answer: JSON with message error and time
+*/
+func (h *HTTPHandlers) HandlerStop(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("HandlerStop\n")
+
+	h.users.Stop()
 }
